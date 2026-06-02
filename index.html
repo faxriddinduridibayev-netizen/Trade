@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Trading Signal Panel</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0d1117;--bg2:#161b22;--bg3:#21262d;
+  --border:#30363d;--text:#e6edf3;--muted:#8b949e;
+  --green:#3fb950;--red:#f85149;--blue:#58a6ff;--amber:#d29922;
+}
+body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;min-height:100vh}
+header{background:var(--bg2);border-bottom:1px solid var(--border);padding:14px 24px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:10}
+.logo{font-size:17px;font-weight:600;display:flex;align-items:center;gap:8px;color:var(--text)}
+.status{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted)}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--green);animation:blink 2s infinite}
+.dot.off{background:var(--red);animation:none}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;padding:20px 24px}
+@media(max-width:580px){.stats{grid-template-columns:repeat(2,1fr)}}
+.stat{background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:14px 16px}
+.stat-label{font-size:12px;color:var(--muted);margin-bottom:6px}
+.stat-val{font-size:26px;font-weight:600;color:var(--text)}
+.stat-val.green{color:var(--green)}
+.stat-val.red{color:var(--red)}
+.ticker-wrap{padding:0 24px 16px}
+.ticker-label{font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;margin-bottom:8px}
+.ticker{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none}
+.ticker::-webkit-scrollbar{display:none}
+.tick{background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:8px 14px;font-size:13px;white-space:nowrap;flex-shrink:0;transition:border-color .3s}
+.tick.up{border-color:#2ea04380}
+.tick.down{border-color:#da363380}
+.tick-name{color:var(--muted);margin-right:6px;font-size:12px}
+.tick-price{font-weight:600}
+.tick-change{font-size:11px;margin-left:4px}
+.tick-price.up,.tick-change.up{color:var(--green)}
+.tick-price.down,.tick-change.down{color:var(--red)}
+.tick-price.flat,.tick-change.flat{color:var(--muted)}
+.tick-updated{font-size:11px;color:var(--muted);margin-left:8px}
+.section{padding:0 24px 20px}
+.section-title{font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;margin-bottom:12px}
+.feed{display:flex;flex-direction:column;gap:10px}
+.card{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:16px 18px;transition:border-color .4s}
+.card.new{border-color:var(--green);animation:flash .8s ease-out}
+@keyframes flash{0%{background:#1a3a1a}100%{background:var(--bg2)}}
+.card-top{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:12px;gap:10px}
+.card-title{font-size:15px;font-weight:600;color:var(--text)}
+.card-meta{font-size:12px;color:var(--muted);margin-top:3px}
+.badge{font-size:12px;font-weight:600;padding:4px 12px;border-radius:20px;flex-shrink:0}
+.badge.buy{background:#1a3a1a;color:var(--green);border:1px solid #2ea043}
+.badge.sell{background:#3a1a1a;color:var(--red);border:1px solid #da3633}
+.badge.neutral{background:var(--bg3);color:var(--muted);border:1px solid var(--border)}
+.nums{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px}
+.num{background:var(--bg3);border-radius:6px;padding:8px 10px;text-align:center}
+.num-label{font-size:11px;color:var(--muted);margin-bottom:3px}
+.num-val{font-size:16px;font-weight:600;color:var(--text)}
+.num-val.up{color:var(--green)}
+.num-val.down{color:var(--red)}
+.note{font-size:12px;color:var(--muted);font-style:italic;margin-bottom:10px;padding:6px 10px;background:var(--bg3);border-radius:4px}
+.bar-wrap{height:4px;background:var(--bg3);border-radius:2px;margin-bottom:10px;overflow:hidden}
+.bar-fill{height:100%;border-radius:2px;transition:width .8s ease}
+.bar-fill.buy{background:var(--green)}
+.bar-fill.sell{background:var(--red)}
+.bar-fill.neutral{background:var(--muted)}
+.card-foot{display:flex;align-items:center;justify-content:space-between}
+.pairs{font-size:12px;color:var(--muted)}
+.prob{font-size:13px;font-weight:600}
+.prob.buy{color:var(--green)}
+.prob.sell{color:var(--red)}
+.prob.neutral{color:var(--muted)}
+.empty{text-align:center;padding:60px 20px;color:var(--muted)}
+.empty-icon{font-size:48px;margin-bottom:12px}
+footer{border-top:1px solid var(--border);padding:12px 24px;font-size:12px;color:var(--muted);display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.real-badge{background:#1a2a1a;border:1px solid #2ea04360;color:var(--green);font-size:11px;padding:2px 8px;border-radius:4px;margin-left:4px}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#58a6ff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+    </svg>
+    Trading Signal Panel
+  </div>
+  <div class="status">
+    <span class="dot" id="ws-dot"></span>
+    <span id="ws-status">Ulanmoqda...</span>
+  </div>
+</header>
+
+<div class="stats">
+  <div class="stat"><div class="stat-label">Bugungi signallar</div><div class="stat-val" id="total">0</div></div>
+  <div class="stat"><div class="stat-label">BUY signallar</div><div class="stat-val green" id="buy-count">0</div></div>
+  <div class="stat"><div class="stat-label">SELL signallar</div><div class="stat-val red" id="sell-count">0</div></div>
+  <div class="stat"><div class="stat-label">Oxirgi signal</div><div class="stat-val" id="last-time" style="font-size:17px">—</div></div>
+</div>
+
+<div class="ticker-wrap">
+  <div class="ticker-label">
+    Real valyuta kurslari <span class="real-badge">Twelve Data</span>
+    <span id="price-updated" style="font-weight:400;text-transform:none;letter-spacing:0;margin-left:8px;color:var(--muted);font-size:11px"></span>
+  </div>
+  <div class="ticker" id="ticker">
+    <div class="tick" id="tick-EUR/USD"><span class="tick-name">EUR/USD</span><span class="tick-price flat" id="p-EUR/USD">—</span><span class="tick-change flat" id="c-EUR/USD"></span></div>
+    <div class="tick" id="tick-GBP/USD"><span class="tick-name">GBP/USD</span><span class="tick-price flat" id="p-GBP/USD">—</span><span class="tick-change flat" id="c-GBP/USD"></span></div>
+    <div class="tick" id="tick-USD/JPY"><span class="tick-name">USD/JPY</span><span class="tick-price flat" id="p-USD/JPY">—</span><span class="tick-change flat" id="c-USD/JPY"></span></div>
+    <div class="tick" id="tick-XAU/USD"><span class="tick-name">XAU/USD</span><span class="tick-price flat" id="p-XAU/USD">—</span><span class="tick-change flat" id="c-XAU/USD"></span></div>
+    <div class="tick" id="tick-BTC/USD"><span class="tick-name">BTC/USD</span><span class="tick-price flat" id="p-BTC/USD">—</span><span class="tick-change flat" id="c-BTC/USD"></span></div>
+    <div class="tick" id="tick-AUD/USD"><span class="tick-name">AUD/USD</span><span class="tick-price flat" id="p-AUD/USD">—</span><span class="tick-change flat" id="c-AUD/USD"></span></div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-title">So'nggi signallar</div>
+  <div class="feed" id="feed">
+    <div class="empty">
+      <div class="empty-icon">📡</div>
+      <div>WebSocket ga ulanilmoqda...</div>
+      <div style="margin-top:6px;font-size:12px">Muhim yangilik kelganda bu yerda ko'rinadi</div>
+    </div>
+  </div>
+</div>
+
+<footer>
+  <span id="ws-url" style="font-family:monospace">—</span>
+  <span style="margin-left:auto">Oxirgi yangilanish: <span id="last-update">—</span></span>
+</footer>
+
+<script>
+const state = {total:0, buy:0, sell:0};
+
+function fmtPrice(sym, v) {
+  if(sym==="XAU/USD") return v.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});
+  if(sym==="BTC/USD") return v.toLocaleString("en-US",{maximumFractionDigits:0});
+  if(sym==="USD/JPY") return v.toFixed(3);
+  return v.toFixed(5);
+}
+
+function updatePrices(data) {
+  Object.entries(data).forEach(([sym, info]) => {
+    const pe = document.getElementById("p-"+sym);
+    const ce = document.getElementById("c-"+sym);
+    const te = document.getElementById("tick-"+sym);
+    if(!pe) return;
+    const price  = parseFloat(info.price);
+    const change = parseFloat(info.change||0);
+    const dir    = change > 0 ? "up" : change < 0 ? "down" : "flat";
+    pe.textContent = fmtPrice(sym, price);
+    pe.className   = "tick-price " + dir;
+    ce.textContent = change !== 0 ? (change > 0 ? "+" : "") + change.toFixed(4) + "%" : "";
+    ce.className   = "tick-change " + dir;
+    te.className   = "tick " + (dir !== "flat" ? dir : "");
+  });
+  const now = new Date();
+  document.getElementById("price-updated").textContent =
+    "Yangilangan: " + now.getHours()+":"+(now.getMinutes()+"").padStart(2,"0");
+}
+
+function makeCard(d, isNew=false) {
+  const sig = (d.signal||"NEUTRAL").toUpperCase();
+  const bc  = sig==="BUY"?"buy":sig==="SELL"?"sell":"neutral";
+  const pairs = (d.pairs||[]).slice(0,3).join("  ");
+  const prob  = d.probability||50;
+
+  function cls(a,b) {
+    if(!a||!b) return "";
+    const av=parseFloat(a.replace(/[^0-9.-]/g,"")),bv=parseFloat(b.replace(/[^0-9.-]/g,""));
+    if(isNaN(av)||isNaN(bv)) return "";
+    return av>bv?"up":av<bv?"down":"";
+  }
+
+  return `<div class="card${isNew?" new":""}">
+    <div class="card-top">
+      <div>
+        <div class="card-title">${d.title||"—"}</div>
+        <div class="card-meta">${d.time||""} UTC &nbsp;|&nbsp; ${d.currency||""}</div>
+      </div>
+      <span class="badge ${bc}">${sig}</span>
+    </div>
+    <div class="nums">
+      <div class="num"><div class="num-label">Haqiqiy</div><div class="num-val ${cls(d.actual,d.forecast)}">${d.actual||"—"}</div></div>
+      <div class="num"><div class="num-label">Kutilgan</div><div class="num-val">${d.forecast||"—"}</div></div>
+      <div class="num"><div class="num-label">Oldingi</div><div class="num-val">${d.previous||"—"}</div></div>
+    </div>
+    <div class="note">${d.note||""}</div>
+    <div class="bar-wrap"><div class="bar-fill ${bc}" style="width:${prob}%"></div></div>
+    <div class="card-foot">
+      <span class="pairs">${pairs}</span>
+      <span class="prob ${bc}">${prob}% ${sig}</span>
+    </div>
+  </div>`;
+}
+
+function updateStats(sig) {
+  state.total++;
+  if(sig==="BUY") state.buy++;
+  else if(sig==="SELL") state.sell++;
+  document.getElementById("total").textContent     = state.total;
+  document.getElementById("buy-count").textContent = state.buy;
+  document.getElementById("sell-count").textContent= state.sell;
+}
+
+function setStatus(on) {
+  document.getElementById("ws-dot").className = "dot" + (on?"":" off");
+  document.getElementById("ws-status").textContent = on ? "Live — WebSocket ulangan" : "Uzildi — qayta ulanmoqda...";
+}
+
+function connect() {
+  const proto = location.protocol==="https:"?"wss":"ws";
+  const url   = `${proto}://${location.host}/ws`;
+  document.getElementById("ws-url").textContent = url;
+  const ws = new WebSocket(url);
+
+  ws.onopen = () => setStatus(true);
+
+  ws.onmessage = (e) => {
+    const d = JSON.parse(e.data);
+    const now = new Date();
+    const ts  = now.getHours()+":"+(now.getMinutes()+"").padStart(2,"0")+":"+(now.getSeconds()+"").padStart(2,"0");
+    document.getElementById("last-update").textContent = ts;
+
+    if(d.type === "prices") {
+      updatePrices(d.data);
+      return;
+    }
+    if(d.type === "signal") {
+      const feed  = document.getElementById("feed");
+      const empty = feed.querySelector(".empty");
+      if(empty) empty.remove();
+      feed.insertAdjacentHTML("afterbegin", makeCard(d, true));
+      updateStats(d.signal);
+      document.getElementById("last-time").textContent = d.time||ts;
+      const cards = feed.querySelectorAll(".card");
+      if(cards.length > 50) cards[cards.length-1].remove();
+    }
+  };
+
+  ws.onclose = () => { setStatus(false); setTimeout(connect, 3000); };
+  ws.onerror = () => ws.close();
+}
+
+// Sahifa ochilganda oldingi signal va kurslarni yuklash
+fetch("/api/prices").then(r=>r.json()).then(d=>{
+  if(d.prices) updatePrices(d.prices);
+}).catch(()=>{});
+
+fetch("/api/signals").then(r=>r.json()).then(d=>{
+  if(!d.signals||!d.signals.length) return;
+  const feed  = document.getElementById("feed");
+  const empty = feed.querySelector(".empty");
+  if(empty) empty.remove();
+  d.signals.forEach(s=>{
+    feed.insertAdjacentHTML("beforeend", makeCard(s, false));
+    updateStats(s.signal);
+  });
+}).catch(()=>{});
+
+connect();
+</script>
+</body>
+</html>
