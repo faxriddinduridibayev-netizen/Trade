@@ -304,20 +304,119 @@ async def check_news():
         log.info("Signal: %s | %s %s%%", event["title"], res["signal"], res["probability"])
 
 
+# ─── TELEGRAM BOT KOMANDALAR ────────────────────────────────
+from telegram.ext import Application, CommandHandler, ContextTypes
+from telegram import Update
+
+tg_app: Application | None = None
+
+async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(
+        "📊 <b>Trading Signal Panel</b>\n\n"
+        "Muhim iqtisodiy yangiliklar kelganda signal yuboraman.\n\n"
+        "/status — Bot holati\n"
+        "/test   — Test signal yuborish\n"
+        "/today  — Bugungi muhim yangiliklar",
+        parse_mode="HTML",
+    )
+
+async def cmd_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    now = datetime.now(timezone.utc)
+    await update.message.reply_text(
+        f"✅ Bot ishlayapti\n"
+        f"🕐 UTC: {now.strftime('%H:%M:%S')}\n"
+        f"📨 Yuborilgan signallar: {len(signal_history)} ta\n"
+        f"💱 Kurslar: {len(live_prices)} ta juftlik\n"
+        f"🔄 Kurs yangilanish: har 15 daqiqada\n"
+        f"📰 Yangilik tekshirish: har 30 daqiqada",
+    )
+
+async def cmd_test(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    test_event = {
+        "time": "15:30",
+        "currency": "USD",
+        "title": "Non-Farm Payrolls",
+        "actual": "220K",
+        "forecast": "180K",
+        "previous": "200K",
+    }
+    res = analyze(test_event)
+    now = datetime.now(timezone.utc).strftime("%H:%M:%S")
+    payload = {
+        "type":        "signal",
+        "time":        now,
+        "title":       test_event["title"],
+        "currency":    test_event["currency"],
+        "actual":      test_event["actual"],
+        "forecast":    test_event["forecast"],
+        "previous":    test_event["previous"],
+        "signal":      res["signal"],
+        "probability": res["probability"],
+        "note":        res["note"],
+        "pairs":       res["pairs"],
+    }
+    signal_history.insert(0, payload)
+    await broadcast(payload)
+    msg = format_telegram(test_event, res)
+    await update.message.reply_text("📋 Test signal:\n\n" + msg, parse_mode="HTML")
+
+async def cmd_today(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(
+        "⏳ ForexFactory tekshirilmoqda...",
+    )
+    events = fetch_forexfactory()
+    if not events:
+        await update.message.reply_text(
+            "📭 Bugun yuqori muhimlikdagi yangilik topilmadi.\n"
+            "Muhim yangiliklar: Payshanba (ECB), Juma (NFP) da kutilmoqda."
+        )
+        return
+    lines = ["📅 <b>Bugungi muhim yangiliklar:</b>\n"]
+    for e in events[:10]:
+        actual = f" → <b>{e['actual']}</b>" if e["actual"] else ""
+        lines.append(f"⏰ {e['time']} | {e['currency']} | {e['title']}{actual}")
+    await update.message.reply_text("\n".join(lines), parse_mode="HTML")
+
+async def start_bot_polling():
+    """Telegram bot ni background da ishga tushirish."""
+    global tg_app
+    if not BOT_TOKEN:
+        log.warning("BOT_TOKEN yo'q — Telegram bot ishlamaydi")
+        return
+    tg_app = Application.builder().token(BOT_TOKEN).build()
+    tg_app.add_handler(CommandHandler("start",  cmd_start))
+    tg_app.add_handler(CommandHandler("status", cmd_status))
+    tg_app.add_handler(CommandHandler("test",   cmd_test))
+    tg_app.add_handler(CommandHandler("today",  cmd_today))
+    await tg_app.initialize()
+    await tg_app.start()
+    await tg_app.updater.start_polling(drop_pending_updates=True)
+    log.info("Telegram bot polling boshlandi!")
+
+async def stop_bot_polling():
+    global tg_app
+    if tg_app:
+        await tg_app.updater.stop()
+        await tg_app.stop()
+        await tg_app.shutdown()
+
 # ─── FASTAPI ─────────────────────────────────────────────────
 scheduler = AsyncIOScheduler(timezone="UTC")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Kurslar: har 15 daqiqada (576 so'rov/kun — limitdan past)
+    # Kurslar: har 15 daqiqada
     scheduler.add_job(fetch_prices, "interval", minutes=15, id="prices")
-    # Yangiliklar: har 30 daqiqada (muhim yangilik oz bo'lgani uchun yetarli)
+    # Yangiliklar: har 30 daqiqada
     scheduler.add_job(check_news,  "interval", minutes=30, id="news")
     scheduler.start()
-    # Ishga tushganda darhol bir marta olish
+    # Ishga tushganda darhol kurslarni olish
     await fetch_prices()
+    # Telegram bot polling ni ishga tushirish
+    await start_bot_polling()
     log.info("Server ishga tushdi!")
     yield
+    await stop_bot_polling()
     scheduler.shutdown()
 
 app = FastAPI(lifespan=lifespan)
