@@ -378,27 +378,48 @@ async def cmd_today(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("\n".join(lines), parse_mode="HTML")
 
 async def start_bot_polling():
-    """Telegram bot ni background da ishga tushirish."""
+    """Telegram bot ni background da ishga tushirish (v21.x)."""
     global tg_app
     if not BOT_TOKEN:
         log.warning("BOT_TOKEN yo'q — Telegram bot ishlamaydi")
         return
-    tg_app = Application.builder().token(BOT_TOKEN).build()
-    tg_app.add_handler(CommandHandler("start",  cmd_start))
-    tg_app.add_handler(CommandHandler("status", cmd_status))
-    tg_app.add_handler(CommandHandler("test",   cmd_test))
-    tg_app.add_handler(CommandHandler("today",  cmd_today))
-    await tg_app.initialize()
-    await tg_app.start()
-    await tg_app.updater.start_polling(drop_pending_updates=True)
-    log.info("Telegram bot polling boshlandi!")
+    try:
+        tg_app = (
+            Application.builder()
+            .token(BOT_TOKEN)
+            .updater(None)          # polling ni qo'lda boshqaramiz
+            .build()
+        )
+        tg_app.add_handler(CommandHandler("start",  cmd_start))
+        tg_app.add_handler(CommandHandler("status", cmd_status))
+        tg_app.add_handler(CommandHandler("test",   cmd_test))
+        tg_app.add_handler(CommandHandler("today",  cmd_today))
+        await tg_app.initialize()
+        await tg_app.start()
+        # Background task sifatida polling
+        asyncio.create_task(_run_polling())
+        log.info("Telegram bot polling boshlandi!")
+    except Exception as e:
+        log.error("Telegram bot xatosi: %s", e)
+
+async def _run_polling():
+    """Polling ni alohida task da ishlatish."""
+    try:
+        await tg_app.updater.start_polling(drop_pending_updates=True)
+        await tg_app.updater.idle()
+    except Exception as e:
+        log.error("Polling xatosi: %s", e)
 
 async def stop_bot_polling():
     global tg_app
     if tg_app:
-        await tg_app.updater.stop()
-        await tg_app.stop()
-        await tg_app.shutdown()
+        try:
+            if tg_app.updater and tg_app.updater.running:
+                await tg_app.updater.stop()
+            await tg_app.stop()
+            await tg_app.shutdown()
+        except Exception as e:
+            log.error("Bot to'xtatishda xato: %s", e)
 
 # ─── FASTAPI ─────────────────────────────────────────────────
 scheduler = AsyncIOScheduler(timezone="UTC")
@@ -410,10 +431,11 @@ async def lifespan(app: FastAPI):
     # Yangiliklar: har 30 daqiqada
     scheduler.add_job(check_news,  "interval", minutes=30, id="news")
     scheduler.start()
-    # Ishga tushganda darhol kurslarni olish
-    await fetch_prices()
-    # Telegram bot polling ni ishga tushirish
+    # Telegram bot ni avval ishga tushirish
     await start_bot_polling()
+    # 30 soniya kutib kurslarni olish (429 xatosi oldini olish)
+    await asyncio.sleep(30)
+    await fetch_prices()
     log.info("Server ishga tushdi!")
     yield
     await stop_bot_polling()
