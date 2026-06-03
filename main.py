@@ -74,39 +74,44 @@ USER_AGENTS = [
 
 # ─── TWELVE DATA: REAL KURSLAR ───────────────────────────────
 async def fetch_prices():
-    """Har 15 daqiqada Twelve Data dan real kurslarni oladi."""
+    """Har 15 daqiqada Twelve Data dan real kurslarni oladi.
+    Bepul limitda har juftlik uchun alohida so'rov yuboriladi.
+    6 juftlik × 2 so'rov/soat = 288 so'rov/kun (800 dan past).
+    """
     if not TWELVE_DATA_KEY:
         log.warning("TWELVE_DATA_KEY yo'q — kurslar yangilanmaydi")
         return
 
-    symbols = ",".join(WATCH_SYMBOLS)
-    url = (
-        f"https://api.twelvedata.com/price"
-        f"?symbol={symbols}&apikey={TWELVE_DATA_KEY}"
-    )
-    try:
-        resp = requests.get(url, timeout=10)
-        resp.raise_for_status()
-        data = resp.json()
+    updates = {}
+    for sym in WATCH_SYMBOLS:
+        try:
+            url = (
+                f"https://api.twelvedata.com/price"
+                f"?symbol={sym}&apikey={TWELVE_DATA_KEY}"
+            )
+            resp = requests.get(url, timeout=10)
+            resp.raise_for_status()
+            data = resp.json()
 
-        updates = {}
-        for sym in WATCH_SYMBOLS:
-            # Twelve Data bir juftlik uchun to'g'ridan bevosida qaytaradi
-            item = data.get(sym) or data
-            price_str = item.get("price") if isinstance(item, dict) else None
+            price_str = data.get("price")
             if price_str:
                 new_price = float(price_str)
                 old = live_prices.get(sym, {}).get("price", new_price)
                 change = round((new_price - old) / old * 100, 4) if old else 0
                 live_prices[sym] = {"price": new_price, "change": change}
                 updates[sym] = {"price": new_price, "change": change}
+                log.info("%s = %s", sym, new_price)
+            else:
+                log.warning("%s uchun javob: %s", sym, data)
 
-        if updates:
-            await broadcast({"type": "prices", "data": updates})
-            log.info("Kurslar yangilandi: %d ta juftlik", len(updates))
+            time.sleep(1)  # Rate limit — so'rovlar orasida 1 soniya
 
-    except Exception as e:
-        log.error("Twelve Data xatosi: %s", e)
+        except Exception as e:
+            log.error("Twelve Data xatosi (%s): %s", sym, e)
+
+    if updates:
+        await broadcast({"type": "prices", "data": updates})
+        log.info("Kurslar yangilandi: %d ta juftlik", len(updates))
 
 
 # ─── FOREXFACTORY: FAQAT MUHIM YANGILIKLAR ──────────────────
